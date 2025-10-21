@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>U-Trander Pro · 專業交易紀錄與分析系統</title>
+
+<!-- TradingView Advanced Chart -->
+<script src="https://s3.tradingview.com/tv.js"></script>
+
+<style>
+:root{
+  --bg:#0a101b;--panel:#161c28;--text:#e6eefc;--muted:#93a4bf;--primary:#3b82f6;
+  --accent:#22c55e;--danger:#ef4444;--border:#334155;--chip:#1e293b
+}
+[data-theme="light"]{
+  --bg:#f6f8fb;--panel:#ffffff;--text:#0b1220;--muted:#667894;--primary:#2563eb;
+  --accent:#16a34a;--danger:#dc2626;--border:#dbe2ee;--chip:#eef2f9
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.6 system-ui,-apple-system,Segoe UI,Roboto,Arial,"Noto Sans TC",sans-serif}
+.container{max-width:1200px;margin:24px auto;padding:0 16px}
+.header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px} .header .flex{flex-wrap:wrap;justify-content:flex-end}
+.title{font-weight:800;font-size:20px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap}
+.tab{padding:10px 14px;border:1px solid var(--border);border-radius:10px;background:var(--panel);color:var(--text);cursor:pointer}
+.tab.active{outline:2px solid var(--primary)}
+.theme{display:flex;gap:8px}
+.btn{padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:var(--panel);color:var(--text);cursor:pointer} .btn:hover{background:var(--chip)}
+.btn.primary{background:var(--primary);border-color:transparent;color:#fff}
+.btn.ghost{background:transparent}
+.btn.danger{background:var(--danger);color:#fff;border-color:transparent}
+.grid{display:grid;gap:12px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px}
+h3{margin:0 0 10px 0;font-size:16px}
+.row{display:grid;grid-template-columns:repeat(12,1fr);gap:12px}
+.input,select,textarea{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text)}
+small{color:var(--muted)}
+.tbl{width:100%;border-collapse:collapse}
+.tbl th,.tbl td{border-top:1px solid var(--border);padding:10px;text-align:left}
+.tbl th{font-weight:700;color:var(--muted)}
+.kpi{font-size:22px;font-weight:800}
+.badge{padding:2px 8px;border-radius:999px;background:var(--border);font-size:12px;color:var(--muted)}
+.flex{display:flex;gap:8px;align-items:center}
+.right{justify-content:flex-end}
+.hr{height:1px;background:var(--border);margin:8px 0}
+.pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.pill{padding:6px 10px;border-radius:999px;background:var(--chip);border:1px solid var(--border);cursor:pointer}
+.pill.active{outline:2px solid var(--primary)}
+.note{font-size:12px;color:var(--muted)}
+.toast{position:fixed;right:16px;bottom:16px;background:var(--panel);border:1px solid var(--border);
+  color:var(--text);padding:12px 14px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.25);max-width:360px;z-index:9999}
+.hide{display:none}
+
+@media (max-width: 768px) {
+  .container { padding: 0 8px; margin: 12px auto; }
+  .header { flex-direction: column; gap: 8px; }
+  .tabs { width: 100%; justify-content: center; }
+  .tab { padding: 8px 10px; font-size: 12px; }
+  .row { grid-template-columns: 1fr !important; } .row > div { margin-bottom: 8px; }
+  .row > div[style*="grid-column"] { grid-column: span 12 !important; }
+  .btn { padding: 8px 10px; font-size: 13px; }
+  .tbl { font-size: 11px; overflow-x: auto; display: block; white-space: nowrap; }
+  .tbl th, .tbl td { padding: 6px 4px; }
+  #tv-container { height: 400px !important; }
+  .kpi { font-size: 18px; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="title">U-Trander Pro · 專業交易紀錄與分析系統</div>
+    <div class="flex">
+      <div class="tabs" id="tabs">
+        <button class="tab active" data-page="p-dashboard">儀表板</button>
+        <button class="tab" data-page="p-market">盤面參考</button>
+        <button class="tab" data-page="p-sim">模擬試算</button>
+        <button class="tab" data-page="p-records">實際交易紀錄</button>
+        <button class="tab" data-page="p-quant">量化決策</button>
+        <button class="tab" data-page="p-cloud">設定（雲端）</button>
+      </div>
+      <div class="theme">
+        <button class="btn" id="lightBtn">淺色</button>
+        <button class="btn" id="darkBtn">深色</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- 儀表板 -->
+  <section id="p-dashboard" class="card">
+    <h3>📊 交易績效總覽</h3>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-top:12px">
+      <div class="card">
+        <div class="flex"><span class="badge">總交易次數</span></div>
+        <div class="kpi" id="dash-total">0</div>
+      </div>
+      <div class="card">
+        <div class="flex"><span class="badge">總盈虧 (USDT)</span></div>
+        <div class="kpi" id="dash-pl">0.00</div>
+      </div>
+      <div class="card">
+        <div class="flex"><span class="badge">勝率</span></div>
+        <div class="kpi" id="dash-winrate">0%</div>
+      </div>
+      <div class="card">
+        <div class="flex"><span class="badge">平均 RRR</span></div>
+        <div class="kpi" id="dash-rrr">0.00</div>
+      </div>
+      <div class="card">
+        <div class="flex"><span class="badge">最大單筆盈利</span></div>
+        <div class="kpi" id="dash-maxwin" style="color:var(--accent)">0.00</div>
+      </div>
+      <div class="card">
+        <div class="flex"><span class="badge">最大單筆虧損</span></div>
+        <div class="kpi" id="dash-maxloss" style="color:var(--danger)">0.00</div>
+      </div>
+    </div>
+    <small style="margin-top:12px;display:block">統計數據基於已平倉的交易紀錄。</small>
+  </section>
+
+  <!-- 盤面參考 -->
+  <section id="p-market" class="card" style="display:none">
+    <h3>TradingView 小工具</h3>
+
+    <!-- 預設交易所快捷 -->
+    <div style="margin-bottom:12px">
+      <div class="flex" style="flex-wrap:wrap;gap:8px;margin-bottom:6px;align-items:center">
+        <span class="badge">🟡 幣安</span>
+        <button class="btn" data-preset="BINANCE:BTCUSDT">BTC</button>
+        <button class="btn" data-preset="BINANCE:ETHUSDT">ETH</button>
+        <button class="btn" data-preset="BINANCE:SOLUSDT">SOL</button>
+        <button class="btn" data-preset="BINANCE:BNBUSDT">BNB</button>
+        <button class="btn" data-preset="BINANCE:ADAUSDT">ADA</button>
+      </div>
+      <div class="flex" style="flex-wrap:wrap;gap:8px;margin-bottom:6px;align-items:center">
+        <span class="badge">🟠 Bybit</span>
+        <button class="btn" data-preset="BYBIT:BTCUSDT">BTC</button>
+        <button class="btn" data-preset="BYBIT:ETHUSDT">ETH</button>
+        <button class="btn" data-preset="BYBIT:SOLUSDT">SOL</button>
+        <button class="btn" data-preset="BYBIT:XRPUSDT">XRP</button>
+        <button class="btn" data-preset="BYBIT:DOGEUSDT">DOGE</button>
+      </div>
+      <div class="flex" style="flex-wrap:wrap;gap:8px;margin-bottom:6px;align-items:center">
+        <span class="badge">⚫ OKX</span>
+        <button class="btn" data-preset="OKX:BTCUSDT.P">BTC</button>
+        <button class="btn" data-preset="OKX:ETHUSDT.P">ETH</button>
+        <button class="btn" data-preset="OKX:SOLUSDT.P">SOL</button>
+        <button class="btn" data-preset="OKX:AVAXUSDT.P">AVAX</button>
+        <button class="btn" data-preset="OKX:DOTUSDT.P">DOT</button>
+      </div>
+      <div class="flex" style="flex-wrap:wrap;gap:8px;margin-bottom:6px;align-items:center">
+        <span class="badge">🔵 Pionex</span>
+        <button class="btn" data-preset="PIONEX:BTCUSDT.P">BTC</button>
+        <button class="btn" data-preset="PIONEX:ETHUSDT.P">ETH</button>
+        <button class="btn" data-preset="PIONEX:SOLUSDT.P">SOL</button>
+        <button class="btn" data-preset="PIONEX:BNBUSDT.P">BNB</button>
+        <button class="btn" data-preset="PIONEX:MATICUSDT.P">MATIC</button>
+      </div>
+      <div class="flex" style="flex-wrap:wrap;gap:8px;align-items:center">
+        <span class="badge">🔴 BingX</span>
+        <button class="btn" data-preset="BINGX:BTCUSDT.P">BTC</button>
+        <button class="btn" data-preset="BINGX:ETHUSDT.P">ETH</button>
+        <button class="btn" data-preset="BINGX:SOLUSDT.P">SOL</button>
+        <button class="btn" data-preset="BINGX:LINKUSDT.P">LINK</button>
+        <button class="btn" data-preset="BINGX:UNIUSDT.P">UNI</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col" style="grid-column:span 3">
+        <label>交易所</label>
+        <select class="input" id="tv-ex">
+          <option>BINANCE</option><option>BYBIT</option><option>PIONEX</option><option>BINGX</option><option>OKX</option>
+        </select>
+      </div>
+      <div class="col" style="grid-column:span 5">
+        <label>主圖代碼（EXCHANGE:SYMBOL）</label>
+        <input class="input" id="tv-symbol" value="BINANCE:BTCUSDT" />
+      </div>
+      <div class="col" style="grid-column:span 2">
+        <label>時框</label>
+        <select class="input" id="tv-interval">
+          <option value="15">15m</option><option value="30">30m</option><option value="60" selected>1h</option><option value="240">4h</option><option value="D">1D</option>
+        </select>
+      </div>
+      <div class="col right" style="grid-column:span 2">
+        <label>&nbsp;</label>
+        <button class="btn primary" id="tv-apply">套用</button>
+      </div>
+    </div>
+
+    <!-- 觀察清單 -->
+    <div class="row" style="margin-top:8px">
+      <div style="grid-column:span 10">
+        <label>觀察清單（空白分隔；例如：BINANCE:BTCUSDT BYBIT:BTCUSDT BINGX:BTCUSDT）</label>
+        <input id="watchlist" class="input" placeholder="BINANCE:BTCUSDT BYBIT:BTCUSDT BINGX:BTCUSDT OKX:BTC-USDT-SWAP" />
+        <div class="pills" id="watch-pills"></div>
+        <small class="note">點膠囊標籤即可快速切換圖表。</small>
+      </div>
+      <div class="right" style="grid-column:span 2;align-self:end">
+        <button class="btn" id="btn-apply-watch">生成標籤</button>
+      </div>
+    </div>
+
+    <small>提示：改代碼後按「套用」。切換深/淺色時，圖表將自動重建且保留畫圖工具。</small>
+    <div class="hr"></div>
+    <div id="tv-container" style="height:560px"></div>
+  </section>
+
+  <!-- 模擬試算 -->
+  <section id="p-sim" class="card" style="display:none">
+    <h3>模擬交易試算</h3>
+    <div class="row">
+      <div style="grid-column:span 3"><label>幣種（將一鍵帶入紀錄）</label><input class="input" id="sim-asset" value="BTCUSDT"/></div>
+      <div style="grid-column:span 3"><label>方向</label><select class="input" id="sim-side"><option>多</option><option>空</option></select></div>
+      <div style="grid-column:span 3"><label>本金（USDT）</label><input class="input" id="sim-capital" type="number" value="100"/></div>
+      <div style="grid-column:span 3"><label>槓桿（×）</label><input class="input" id="sim-lev" type="number" value="10"/></div>
+      <div style="grid-column:span 3"><label>進場價</label><input class="input" id="sim-entry" type="number" value="200"/></div>
+      <div style="grid-column:span 3"><label>TP（止盈價）</label><input class="input" id="sim-tp" type="number" value="220"/></div>
+      <div style="grid-column:span 3"><label>SL（停損價）</label><input class="input" id="sim-sl" type="number" value="189"/></div>
+      <div style="grid-column:span 3"><label>手續費（USDT，可空白）</label><input class="input" id="sim-fee" type="number" value="0"/></div>
+      <div style="grid-column:span 3"><label>每筆風險 %（來自資金管理）</label><input class="input" id="sim-risk" type="number" value="1"/></div>
+      <div class="right" style="grid-column:span 6;align-self:end"><button class="btn primary" id="btn-recalc">重新計算</button></div>
+      <div class="right" style="grid-column:span 3;align-self:end"><button class="btn" id="btn-to-record">一鍵帶到「實際交易紀錄」</button></div>
+    </div>
+    <div class="grid" style="grid-template-columns:1fr 1fr 1fr;margin-top:12px">
+      <div class="card"><div class="flex"><span class="badge">名義部位（本金×槓桿）</span></div><div class="kpi" id="kpi-notional">2000.00 USDT</div><div class="hr"></div><div><span class="badge">保證金（估）</span> <span id="kpi-margin" style="font-weight:700">100.00 USDT</span></div></div>
+      <div class="card"><div class="flex"><span class="badge">TP 損益</span></div><div class="kpi" id="kpi-tp">+20.00 USDT</div><div class="hr"></div><div class="flex"><span class="badge">SL 損益</span><span id="kpi-sl" style="font-weight:700">-11.00 USDT</span></div></div>
+      <div class="card"><div class="flex"><span class="badge">R:R（報酬/風險）</span></div><div class="kpi" id="kpi-rrr">1.82</div><div class="hr"></div><div><span class="badge">建議投入（依 SL 計）</span> <span id="kpi-size" style="font-weight:700">181.82 USDT</span></div></div>
+    </div>
+    <small>公式：最大風險金額＝本金×風險%；建議投入＝該金額 ÷ |進場−SL| × 進場；R:R＝|TP損益| ÷ |SL損益|。</small>
+  </section>
+
+  <!-- 實際交易紀錄 -->
+  <section id="p-records" class="card" style="display:none">
+    <h3>實際交易紀錄</h3>
+    <div class="row">
+      <div style="grid-column:span 3"><label>幣種（如 BTCUSDT）</label><input id="rec-asset" class="input" value="BTCUSDT"/></div>
+      <div style="grid-column:span 3"><label>投資額（USDT）</label><input id="rec-invest" type="number" class="input" value="100"/></div>
+      <div style="grid-column:span 2"><label>槓桿（×）</label><input id="rec-lev" type="number" class="input" value="10"/></div>
+      <div style="grid-column:span 2"><label>方向</label><select id="rec-side" class="input"><option>多</option><option>空</option></select></div>
+      <div style="grid-column:span 2"><label>開倉價</label><input id="rec-open" type="number" class="input" value="220"/></div>
+      <div style="grid-column:span 2"><label>TP</label><input id="rec-tp" type="number" class="input" value="260"/></div>
+      <div style="grid-column:span 2"><label>SL</label><input id="rec-sl" type="number" class="input" value="189"/></div>
+      <div style="grid-column:span 2"><label>RRR（自動）</label><input id="rec-rrr" class="input" value="—" readonly/></div>
+      <div style="grid-column:span 3"><label>手續費（USDT，可空白）</label><input id="rec-fee" type="number" class="input" value="0"/></div>
+      <div style="grid-column:span 3"><label>是否已平倉</label><select id="rec-closed" class="input"><option>否</option><option>已平倉</option></select></div>
+      <div style="grid-column:span 3"><label>平倉價（若已平倉）</label><input id="rec-close" type="number" class="input" value="0"/></div>
+      <div style="grid-column:span 3"><label>實際盈虧（USDT，可空白）</label><input id="rec-pl" type="number" class="input" value="0"/></div>
+      <div style="grid-column:span 12"><label>進場理由</label><input id="rec-reason" class="input" placeholder="趨勢延續、突破回測…"/></div>
+    </div>
+    <div class="flex right" style="margin-top:8px">
+      <button class="btn primary" id="btn-add-record">新增</button>
+      <button class="btn" id="btn-clear-records">全部清空（本機）</button>
+    </div>
+    <small>提示：點「修改」會把該筆帶回上方表單，改完按「新增」即覆寫；資料存於 localStorage，若有設定雲端則自動同步。</small>
+    <div class="hr"></div>
+    <table class="tbl" id="tbl-records"><thead>
+      <tr><th>#</th><th>時間</th><th>幣種</th><th>方向</th><th>開倉</th><th>本金</th><th>槓桿</th><th>保證金</th><th>TP</th><th>SL</th><th>RRR</th><th>已平倉</th><th>平倉價</th><th>盈虧</th><th>手續費</th><th>理由</th><th>操作</th></tr>
+    </thead><tbody></tbody></table>
+  </section>
+
+  <!-- 量化決策 -->
+  <section id="p-quant" class="card" style="display:none">
+    <h3>量化決策表（人工量化核心）</h3>
+    <small>此介面用於量化評估交易機會，排除人為情緒干擾，並可作為回測統計依據。</small>
+    <div class="card" style="margin-bottom:12px">
+      <h3>量化決策儀表板 (勝率分析)</h3>
+      <div class="grid" id="quant-dashboard" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">
+        <!-- KPI 會由 JavaScript 渲染 -->
+      </div>
+      <small style="display:block;margin-top:8px">統計數據基於「結果」非「未執行」的決策紀錄。</small>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <div style="grid-column:span 3"><label>標的</label><input id="qt-asset" class="input" placeholder="如 SOL"/></div>
+      <div style="grid-column:span 3"><label>熟悉的形態</label><select id="qt-pattern" class="input">
+        <option value="頭肩頂">頭肩頂</option>
+        <option value="頭肩底">頭肩底</option>
+        <option value="通道">通道</option>
+        <option value="vegas">vegas</option>
+        <option value="其他" selected>其他</option>
+      </select></div>
+      <div style="grid-column:span 3"><label>趨勢</label><select id="qt-trend" class="input">
+        <option value="上行趨勢" selected>上行趨勢</option>
+        <option value="下行趨勢">下行趨勢</option>
+        <option value="盤整區間">盤整區間</option>
+      </select></div>
+      <div style="grid-column:span 3"><label>是否跟隨大盤走勢</label><select id="qt-market" class="input">
+        <option value="是" selected>是</option>
+        <option value="否">否</option>
+      </select></div>
+      <div style="grid-column:span 3"><label>RRR 風報比 (至少)</label><input id="qt-rrr" class="input" type="number" value="3"/></div>
+      <div style="grid-column:span 3"><label>支撐阻力區與fibo是否畫好</label><select id="qt-draw" class="input">
+        <option value="是TP SL已設定" selected>是TP SL已設定</option>
+        <option value="否">否</option>
+      </select></div>
+      <div style="grid-column:span 3"><label>突破交易</label><select id="qt-breakout" class="input">
+        <option value="突破激進進場" selected>突破激進進場</option>
+        <option value="突破回踩進場">突破回踩進場</option>
+      </select></div>
+      <div style="grid-column:span 3"><label>是否進場</label><select id="qt-enter" class="input">
+        <option value="是" selected>是</option>
+        <option value="否">否</option>
+      </select></div>
+      <div style="grid-column:span 6"><label>備註</label><input id="qt-note" class="input" placeholder="回測有撐 / 關鍵位突破…"/></div>
+    </div>
+    <div class="flex right" style="margin-top:8px">
+      <button class="btn primary" id="btn-add-decision">加入決策表</button>
+      <button class="btn" id="btn-csv">匯出 CSV</button>
+    </div>
+    <div class="hr"></div>
+    <table class="tbl" id="tbl-quant"><thead>
+      <tr><th>#</th><th>標的</th><th>形態</th><th>趨勢</th><th>大盤</th><th>RRR</th><th>突破</th><th>畫線</th><th>是否進場</th><th>結果</th><th>備註</th><th>操作</th></tr>
+    </thead><tbody></tbody></table>
+  </section>
+
+  <!-- 設定（雲端） -->
+  <section id="p-cloud" class="card" style="display:none">
+    <h3>雲端模式（Supabase，自動上傳）</h3>
+    <small>填入 <b>Project URL</b> 與 <b>Anon Key</b> 後按「儲存並連線」。之後新增/修改/刪除紀錄與決策，會自動 upsert 到雲端。</small>
+    <div class="row" style="margin-top:8px">
+      <div style="grid-column:span 8"><label>Project URL（含 https://）</label><input id="sb-url" class="input" placeholder="https://xxxxx.supabase.co"/></div>
+      <div style="grid-column:span 12"><label>Anon Public Key</label><textarea id="sb-key" rows="3" class="input" placeholder="eyJhbGciOi..."></textarea></div>
+    </div>
+    <div class="flex right" style="margin-top:8px">
+      <button class="btn" id="btn-save-cloud">儲存並連線（改用雲端）</button>
+      <button class="btn danger" id="btn-clear-cloud">清除設定（改用離線）</button>
+    </div>
+    <div class="hr"></div>
+    <small class="note">若首次同步顯示「需建立資料表」，請把彈出訊息中的 SQL 一鍵複製到 Supabase SQL Editor 執行一次即可。</small>
+  </section>
+</div>
+
+<div id="toast" class="toast hide"></div>
+
+<script>
+/* ------------------ 工具 ------------------ */
+function toast(msg, ms=3600){const t=document.getElementById('toast');t.innerHTML=msg;t.classList.remove('hide');setTimeout(()=>t.classList.add('hide'),ms)}
+function fmt(n){ return (isFinite(n)?Number(n).toFixed(2):'—'); }
+function persist(k,v){ localStorage.setItem(k, JSON.stringify(v)); }
+function get(k,def){ try{ return JSON.parse(localStorage.getItem(k)) ?? def; }catch(e){ return def; } }
+
+/* ------------------ App 狀態 ------------------ */
+const appState = {
+  theme: localStorage.getItem('ut_theme') || 'light',
+  records: get('ut_records', []),
+  decisions: get('ut_decisions', []),
+  cloud: get('ut_cloud', {url: 'https://jhyxoxzwhsqxldhskvfg.supabase.co', key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJoeXhveHp3aHNxeGxkaHNrdmZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDYxOTk3MzUsImV4cCI6MjAyMTc3NTczNX0.r1O-P-Xq5u3yqB7y89Zt2n2T_o5X4Q8X8-G_3Y_o5X4', enabled: true}),
+  watch: get('ut_watch', "BINANCE:BTCUSDT BYBIT:BTCUSDT BINGX:BTCUSDT OKX:BTC-USDT-SWAP")
+};
+document.documentElement.setAttribute('data-theme', appState.theme);
+
+/* ------------------ Tabs ------------------ */
+document.querySelectorAll('#tabs .tab').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('#tabs .tab').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const page=btn.dataset.page;
+    document.querySelectorAll('section[id^="p-"]').forEach(s=>s.style.display='none');
+    document.getElementById(page).style.display='';
+    if(page==='p-market'){ renderTV(true); }
+  });
+});
+
+/* ------------------ Theme ------------------ */
+document.getElementById('lightBtn').onclick=()=>setTheme('light');
+document.getElementById('darkBtn').onclick=()=>setTheme('dark');
+function setTheme(t){
+  appState.theme=t; localStorage.setItem('ut_theme',t);
+  document.documentElement.setAttribute('data-theme', t);
+  if(document.getElementById('p-market').style.display!=='none'){ renderTV(true); }
+}
+(function(){ (appState.theme==='dark'?darkBtn:lightBtn).classList.add('primary'); })();
+
+/* ------------------ TradingView ------------------ */
+let tvWidget=null;
+function buildWatchPills(){
+  const wrap=document.getElementById('watch-pills'); wrap.innerHTML='';
+  const list=(document.getElementById('watchlist').value||'').trim().split(/\s+/).filter(Boolean);
+  list.forEach((s,idx)=>{
+    const p=document.createElement('span'); p.className='pill'+(idx===0?' active':''); p.textContent=s;
+    p.onclick=()=>{ wrap.querySelectorAll('.pill').forEach(x=>x.classList.remove('active')); p.classList.add('active'); setSymbol(s); };
+    wrap.appendChild(p);
+  });
+  persist('ut_watch', document.getElementById('watchlist').value);
+}
+function setSymbol(sym){
+  document.getElementById('tv-symbol').value = sym;
+  if(tvWidget){ tvWidget.remove(); tvWidget=null; }
+  renderTV(true);
+}
+function renderTV(force){
+  const sym = (document.getElementById('tv-symbol').value||'BINANCE:BTCUSDT').trim();
+  const interval = document.getElementById('tv-interval').value;
+  const theme = (appState.theme==='dark') ? 'dark' : 'light';
+  if(force && tvWidget){ tvWidget.remove(); tvWidget=null; }
+  if(tvWidget){ return; }
+  tvWidget = new TradingView.widget({
+    autosize:true,
+    symbol:sym,
+    interval:interval,
+    container_id:"tv-container",
+    theme:theme,
+    timezone:"Asia/Taipei",
+    style:"1",
+    locale:"zh_TW",
+    hide_top_toolbar:false,
+    hide_side_toolbar:false, // 有畫圖工具
+    allow_symbol_change:true,
+    details:true,
+    calendar:false,
+  });
+}
+document.getElementById('tv-apply').onclick=()=>{ if(tvWidget){ tvWidget.remove(); tvWidget=null;} renderTV(true); };
+document.getElementById('btn-apply-watch').onclick=()=>buildWatchPills();
+document.querySelectorAll('button[data-preset]').forEach(b=>{
+  b.onclick=()=>{ setSymbol(b.dataset.preset); }
+});
+document.getElementById('watchlist').value = appState.watch; buildWatchPills(); renderTV();
+
+/* ------------------ 模擬試算 ------------------ */
+function calcSim(){
+  const side=document.getElementById('sim-side').value;
+  const capital=+document.getElementById('sim-capital').value||0;
+  const lev=+document.getElementById('sim-lev').value||1;
+  const entry=+document.getElementById('sim-entry').value||0;
+  const tp=+document.getElementById('sim-tp').value||0;
+  const sl=+document.getElementById('sim-sl').value||0;
+  const fee=+document.getElementById('sim-fee').value||0;
+  const riskPct=(+document.getElementById('sim-risk').value||1)/100;
+
+  const notional=capital*lev;
+  const margin=capital;
+  const dir=(side==='多')?1:-1;
+  const qty = (entry>0)? (capital*lev/entry) : 0; // 數量 (幣)
+  const tpProfit = ((tp-entry)*dir)*qty - fee; // 假設 fee 是總手續費 (開倉+平倉)
+  const slProfit = ((sl-entry)*dir)*qty - fee;
+  const rrr=(Math.abs(slProfit)>0)? Math.abs(tpProfit)/Math.abs(slProfit):0;
+  const riskAmt=capital*riskPct;
+  const suggestNotional=(Math.abs(entry-sl)>0)? (riskAmt/Math.abs(entry-sl))*entry : 0; // 建議名義部位
+  const suggestMargin=suggestNotional/lev; // 建議保證金
+
+  document.getElementById('kpi-notional').textContent=fmt(notional)+' USDT';
+  document.getElementById('kpi-margin').textContent=fmt(margin)+' USDT';
+  const kti=document.getElementById('kpi-tp'); kti.textContent=(tpProfit>=0?'+':'')+fmt(tpProfit)+' USDT'; kti.style.color=tpProfit>=0?'var(--accent)':'var(--danger)';
+  const ksi=document.getElementById('kpi-sl'); ksi.textContent=(slProfit>=0?'+':'')+fmt(slProfit)+' USDT'; ksi.style.color=slProfit>=0?'var(--accent)':'var(--danger)';
+  document.getElementById('kpi-rrr').textContent= rrr? rrr.toFixed(2):'—';
+  document.getElementById('kpi-size').textContent=fmt(suggestMargin)+' USDT';
+}
+document.getElementById('btn-recalc').onclick=calcSim; calcSim();
+document.getElementById('btn-to-record').onclick=()=>{
+  document.querySelector('[data-page="p-records"]').click();
+  document.getElementById('rec-asset').value=document.getElementById('sim-asset').value;
+  document.getElementById('rec-side').value=document.getElementById('sim-side').value;
+  document.getElementById('rec-invest').value=document.getElementById('sim-capital').value;
+  document.getElementById('rec-lev').value=document.getElementById('sim-lev').value;
+  document.getElementById('rec-open').value=document.getElementById('sim-entry').value;
+  document.getElementById('rec-tp').value=document.getElementById('sim-tp').value;
+  document.getElementById('rec-sl').value=document.getElementById('sim-sl').value;
+};
+
+/* ------------------ 紀錄表 ------------------ */
+function recalcRRR(open,tp,sl,side,inv,lev){
+  const dir=(side==='多')?1:-1, qty=(open>0)? inv*lev/open:0;
+  const tpProfit=(tp-open)*dir*qty, slProfit=(sl-open)*dir*qty;
+  return (Math.abs(slProfit)>0)? Math.abs(tpProfit)/Math.abs(slProfit) : 0;
+}
+
+/* 儀表板更新 */
+function updateDashboard(){
+  const closed = appState.records.filter(r=>r.closed==='已平倉');
+  const total = closed.length;
+  const totalPL = closed.reduce((sum,r)=>sum+(parseFloat(r.pl)||0),0);
+  const wins = closed.filter(r=>(parseFloat(r.pl)||0)>0);
+  const winrate = total>0 ? (wins.length/total*100).toFixed(1) : 0;
+  const avgRRR = closed.length>0 ? (closed.reduce((sum,r)=>sum+(parseFloat(r.rrr)||0),0)/closed.length).toFixed(2) : '0.00';
+  const maxWin = closed.length>0 ? Math.max(...closed.map(r=>parseFloat(r.pl)||0)).toFixed(2) : '0.00';
+  const maxLoss = closed.length>0 ? Math.min(...closed.map(r=>parseFloat(r.pl)||0)).toFixed(2) : '0.00';
+  
+  document.getElementById('dash-total').textContent = total;
+  document.getElementById('dash-pl').textContent = totalPL.toFixed(2);
+  document.getElementById('dash-pl').style.color = totalPL>=0 ? 'var(--accent)' : 'var(--danger)';
+  document.getElementById('dash-winrate').textContent = winrate + '%';
+  document.getElementById('dash-rrr').textContent = avgRRR;
+  document.getElementById('dash-maxwin').textContent = '+' + maxWin;
+  document.getElementById('dash-maxloss').textContent = maxLoss;
+}
+
+function renderRecords(){
+  const tbody=document.querySelector('#tbl-records tbody'); tbody.innerHTML='';
+  appState.records.forEach((r,i)=>{
+    const plColor = (parseFloat(r.pl)||0) >= 0 ? 'var(--accent)' : 'var(--danger)';
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td>${i+1}</td><td>${r.time}</td><td>${r.asset}</td><td>${r.side}</td>
+      <td>${r.open}</td><td>${r.invest}</td><td>${r.lev}</td><td>${(r.invest).toFixed(2)}</td>
+      <td>${r.tp}</td><td>${r.sl}</td><td>${r.rrr? r.rrr.toFixed(2):'—'}</td>
+      <td>${r.closed}</td><td>${r.close||'-'}</td><td style="color:${plColor}">${r.pl||'-'}</td><td>${r.fee||0}</td>
+      <td>${r.reason||''}</td>
+      <td class="flex"><button class="btn" data-edit="${i}">修改</button><button class="btn danger" data-del="${i}">刪除</button></td>`;
+    tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll('[data-edit]').forEach(b=>{
+    b.onclick=()=>{
+      const r=appState.records[+b.dataset.edit];
+      document.getElementById('rec-asset').value=r.asset; document.getElementById('rec-invest').value=r.invest; document.getElementById('rec-lev').value=r.lev; document.getElementById('rec-side').value=r.side;
+      document.getElementById('rec-open').value=r.open; document.getElementById('rec-tp').value=r.tp; document.getElementById('rec-sl').value=r.sl; updateRecRRR();
+      document.getElementById('rec-closed').value=r.closed; document.getElementById('rec-close').value=r.close||0; document.getElementById('rec-pl').value=r.pl||0; document.getElementById('rec-fee').value=r.fee||0; document.getElementById('rec-reason').value=r.reason||'';
+      document.getElementById('btn-add-record').dataset.editIndex=b.dataset.edit;
+    };
+  });
+  tbody.querySelectorAll('[data-del]').forEach(b=>{
+    b.onclick=()=>{ appState.records.splice(+b.dataset.del,1); persist('ut_records',appState.records); renderRecords(); cloudSync('records'); updateDashboard(); };
+  });
+  updateDashboard();
+}
+function updateRecRRR(){
+  const side=document.getElementById('rec-side').value;
+  const invest=+document.getElementById('rec-invest').value||0, lev=+document.getElementById('rec-lev').value||1;
+  const open=+document.getElementById('rec-open').value||0, tp=+document.getElementById('rec-tp').value||0, sl=+document.getElementById('rec-sl').value||0;
+  const rrr=recalcRRR(open,tp,sl,side,invest,lev);
+  document.getElementById('rec-rrr').value=rrr? rrr.toFixed(2):'—';
+}
+document.querySelectorAll('#rec-invest, #rec-lev, #rec-side, #rec-open, #rec-tp, #rec-sl').forEach(el=>el.addEventListener('input', updateRecRRR));
+updateRecRRR(); // 初始計算
+
+document.getElementById('btn-add-record').onclick=()=>{
+  const asset=document.getElementById('rec-asset').value.trim().toUpperCase();
+  const invest=+document.getElementById('rec-invest').value||0, lev=+document.getElementById('rec-lev').value||1, side=document.getElementById('rec-side').value;
+  const open=+document.getElementById('rec-open').value||0, tp=+document.getElementById('rec-tp').value||0, sl=+document.getElementById('rec-sl').value||0;
+  const fee=+document.getElementById('rec-fee').value||0, closed=document.getElementById('rec-closed').value, close=+document.getElementById('rec-close').value||0, pl=+document.getElementById('rec-pl').value||0;
+  const reason=document.getElementById('rec-reason').value||'';
+  const rrr=+document.getElementById('rec-rrr').value||0; // 從顯示欄位取值
+  const item={ id:(Date.now().toString(36)+Math.random().toString(36).slice(2)), 
+    time:new Date().toLocaleString(), asset, invest, lev, side, open, tp, sl, rrr, closed, close, pl, fee, reason };
+  const idx=document.getElementById('btn-add-record').dataset.editIndex;
+  if(idx!==undefined){ item.id=appState.records[+idx].id; appState.records[+idx]=item; delete document.getElementById('btn-add-record').dataset.editIndex; }
+  else{ appState.records.unshift(item); }
+  persist('ut_records',appState.records); renderRecords(); cloudSync('records');
+};
+document.getElementById('btn-clear-records').onclick=()=>{
+  if(confirm('確定清空本機所有紀錄？')){ appState.records=[]; persist('ut_records',appState.records); renderRecords(); cloudSync('records'); }
+};
+renderRecords();
+
+/* ------------------ 決策表 ------------------ */
+function calculateQuantKPI(){
+  const closedDecisions = appState.decisions.filter(d => d.result !== '未執行');
+  const totalClosed = closedDecisions.length;
+  const kpiData = {};
+
+  const conditions = ['pattern', 'trend', 'market', 'breakout', 'draw'];
+  conditions.forEach(cond => {
+    kpiData[cond] = {};
+  });
+
+  // 統計 RRR
+  const rrrWins = closedDecisions.filter(d => d.result === '盈' && d.rrr >= 3).length;
+  const rrrLosses = closedDecisions.filter(d => d.result === '虧' && d.rrr >= 3).length;
+  const rrrTotal = rrrWins + rrrLosses;
+  kpiData.rrr = {
+    'RRR >= 3': {
+      wins: rrrWins,
+      losses: rrrLosses,
+      total: rrrTotal,
+      winRate: rrrTotal > 0 ? (rrrWins / rrrTotal * 100).toFixed(1) + '%' : '—'
+    }
+  };
+
+  // 統計其他條件
+  closedDecisions.forEach(d => {
+    conditions.forEach(cond => {
+      const value = d[cond];
+      if (!kpiData[cond][value]) {
+        kpiData[cond][value] = { wins: 0, losses: 0, total: 0, winRate: '—' };
+      }
+      kpiData[cond][value].total++;
+      if (d.result === '盈') {
+        kpiData[cond][value].wins++;
+      } else if (d.result === '虧') {
+        kpiData[cond][value].losses++;
+      }
+    });
+  });
+
+  // 計算勝率
+  conditions.forEach(cond => {
+    for (const value in kpiData[cond]) {
+      const data = kpiData[cond][value];
+      data.winRate = data.total > 0 ? (data.wins / data.total * 100).toFixed(1) + '%' : '—';
+    }
+  });
+
+  return kpiData;
+}
+
+function renderQuantDashboard(){
+  const kpiData = calculateQuantKPI();
+  const container = document.getElementById('quant-dashboard');
+  container.innerHTML = '';
+
+  const conditionMap = {
+    pattern: '熟悉的形態',
+    trend: '趨勢',
+    market: '跟隨大盤',
+    breakout: '突破交易',
+    draw: '畫線檢查',
+    rrr: '風報比'
+  };
+
+  for(const condKey in kpiData){
+    const condTitle = conditionMap[condKey];
+    for(const valueKey in kpiData[condKey]){
+      const data = kpiData[condKey][valueKey];
+      const card = document.createElement('div');
+      card.className = 'card';
+      const color = data.winRate !== '—' && parseFloat(data.winRate) >= 50 ? 'var(--accent)' : 'var(--danger)';
+      
+      card.innerHTML = `
+        <div class="flex"><span class="badge">${condTitle} - ${valueKey}</span></div>
+        <div class="kpi" style="color:${color}">${data.winRate}</div>
+        <div class="hr"></div>
+        <small>總次數: ${data.total} (盈: ${data.wins} / 虧: ${data.losses})</small>
+      `;
+      container.appendChild(card);
+    }
+  }
+}
+
+function renderQuant(){
+  const tbody=document.querySelector('#tbl-quant tbody'); tbody.innerHTML='';
+  appState.decisions.forEach((d,i)=>{
+    // 移除自動判斷邏輯，改為手動選擇
+    const enterColor = d.enter==='是' ? 'var(--accent)' : 'var(--danger)';
+    
+    // 結果欄位顏色
+    let resultColor = 'var(--muted)';
+    if(d.result === '盈'){ resultColor = 'var(--accent)'; }
+    else if(d.result === '虧'){ resultColor = 'var(--danger)'; }
+
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td>${i+1}</td><td>${d.asset}</td>
+      <td>${d.pattern}</td>
+      <td>${d.trend}</td>
+      <td>${d.market}</td>
+      <td>${d.rrr}</td>
+      <td>${d.breakout}</td>
+      <td>${d.draw}</td>
+      <td style="color:${enterColor}">${d.enter}</td>
+      <td><select class="input" style="width:100px;background-color:var(--panel);color:${resultColor}" data-result-idx="${i}">
+        <option value="未執行" ${d.result==='未執行'?'selected':''}>未執行</option>
+        <option value="盈" ${d.result==='盈'?'selected':''}>盈</option>
+        <option value="虧" ${d.result==='虧'?'selected':''}>虧</option>
+      </select></td>
+      <td>${d.note||''}</td>
+      <td class="flex"><button class="btn danger" data-qdel="${i}">刪除</button></td>`;
+    tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll('[data-qdel]').forEach(b=>{
+    b.onclick=()=>{ appState.decisions.splice(+b.dataset.qdel,1); persist('ut_decisions',appState.decisions); renderQuant(); cloudSync('decisions'); renderQuantDashboard(); };
+  });
+  tbody.querySelectorAll('[data-result-idx]').forEach(select=>{
+    select.onchange=(e)=>{
+      const idx = +e.target.dataset.resultIdx;
+      appState.decisions[idx].result = e.target.value;
+      persist('ut_decisions',appState.decisions);
+      renderQuant(); // 重新渲染以更新顏色
+      cloudSync('decisions');
+      renderQuantDashboard();
+    };
+  });
+  renderQuantDashboard();
+}
+document.getElementById('btn-add-decision').onclick=()=>{
+  const d={ id:(Date.now().toString(36)+Math.random().toString(36).slice(2)),
+    asset:(document.getElementById('qt-asset').value||'').toUpperCase(), 
+    pattern:document.getElementById('qt-pattern').value, 
+    trend:document.getElementById('qt-trend').value,
+    market:document.getElementById('qt-market').value, 
+    breakout:document.getElementById('qt-breakout').value, 
+    draw:document.getElementById('qt-draw').value, // 新增的畫線檢查
+    rrr:+document.getElementById('qt-rrr').value||0, 
+    enter:document.getElementById('qt-enter').value, // 手動選擇是否進場
+    note:document.getElementById('qt-note').value||'',
+    result:'未執行' // 新增結果欄位
+  };
+  appState.decisions.unshift(d); persist('ut_decisions',appState.decisions); renderQuant(); cloudSync('decisions'); renderQuantDashboard();
+};
+document.getElementById('btn-csv').onclick=()=>{
+  const rows=[['#','asset','pattern','trend','market','rrr','breakout','draw','enter','result','note']]; 
+  appState.decisions.forEach((d,i)=>rows.push([i+1,d.asset,d.pattern,d.trend,d.market,d.rrr,d.breakout,d.draw,d.enter,d.result||'未執行',d.note]));
+  const csv=rows.map(r=>r.map(x=>`"${String(x).replaceAll('"','""')}"`).join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='quant-decisions.csv'; a.click(); URL.revokeObjectURL(url);
+};
+renderQuant();
+renderQuantDashboard();
+
+/* ------------------ 雲端自動上傳（Supabase） ------------------ */
+const CREATE_SQL = `
+-- 在 Supabase SQL Editor 執行一次：
+create table if not exists utr_records (
+  id text primary key,
+  time text,
+  asset text,
+  invest numeric,
+  lev numeric,
+  side text,
+  open numeric,
+  tp numeric,
+  sl numeric,
+  rrr numeric,
+  closed text,
+  close numeric,
+  pl numeric,
+  fee numeric,
+  reason text
+);
+
+create table if not exists utr_decisions (
+  id text primary key,
+  asset text,
+  pattern text,    -- 熟悉的形態
+  trend text,      -- 趨勢 (上行/下行/盤整)
+  market text,     -- 是否跟隨大盤走勢 (是/否)
+  breakout text,   -- 突破交易 (激進/回踩)
+  draw text,       -- 支撐阻力區與fibo是否畫好 (是/否)
+  rrr numeric,     -- RRR 風報比
+  enter text,      -- 是否進場 (是/否)
+  result text,     -- 結果 (盈/虧/未執行)
+  note text
+);
+`;
+function sbHeaders(){
+  return {
+    'apikey': appState.cloud.key,
+    'Authorization': 'Bearer '+appState.cloud.key,
+    'Content-Type':'application/json',
+    'Prefer':'return=representation'
+  };
+}
+async function cloudSync(kind){
+  if(!appState.cloud || !appState.cloud.enabled) return;
+  try{
+    const base = appState.cloud.url.replace(/\/+$/,'') + '/rest/v1';
+    if(kind==='records'){
+      // 轉換數據類型以符合 Supabase 結構 (確保數值型欄位是數字)
+      const recordsToSync = appState.records.map(r=>({...r, invest:+r.invest, lev:+r.lev, open:+r.open, tp:+r.tp, sl:+r.sl, rrr:+r.rrr, close:+r.close, pl:+r.pl, fee:+r.fee}));
+      await fetch(base+'/utr_records', {method:'DELETE', headers:sbHeaders()}).catch(()=>{}); // 刪除所有紀錄
+      await fetch(base+'/utr_records', {method:'POST', headers:sbHeaders(), body: JSON.stringify(recordsToSync)});
+    }else if(kind==='decisions'){
+      // 轉換數據類型以符合 Supabase 結構 (確保數值型欄位是數字)
+      const decisionsToSync = appState.decisions.map(d=>({...d, rrr:+d.rrr})); // 由於新的欄位都是 text 或 numeric,無需額外轉換
+      await fetch(base+'/utr_decisions', {method:'DELETE', headers:sbHeaders()}).catch(()=>{}); // 刪除所有紀錄
+      await fetch(base+'/utr_decisions', {method:'POST', headers:sbHeaders(), body: JSON.stringify(decisionsToSync)});
+    }
+    toast('✅ 已自動同步到雲端（'+kind+'）', 2000);
+  }catch(e){
+    toast('⚠️ 雲端同步失敗，可能是尚未建立資料表。<br/><br/><b>請複製以下 SQL 到 Supabase SQL Editor 執行一次：</b><pre style="white-space:pre-wrap">'+CREATE_SQL+'</pre>', 12000);
+  }
+}
+/* 啟用雲端與拉回 */
+async function cloudPull(){
+  if(!appState.cloud || !appState.cloud.enabled) return;
+  try{
+    const base = appState.cloud.url.replace(/\/+$/,'') + '/rest/v1';
+    const r1 = await fetch(base+'/utr_records?select=*', {headers:sbHeaders()});
+    const r2 = await fetch(base+'/utr_decisions?select=*', {headers:sbHeaders()});
+    if(r1.ok){ appState.records = await r1.json(); persist('utr_records',appState.records); renderRecords(); }
+    if(r2.ok){ appState.decisions = await r2.json(); persist('utr_decisions',appState.decisions); renderQuant(); renderQuantDashboard(); }
+    toast('☁️ 已從雲端同步最新資料到本機。', 2200);
+  }catch(e){ /* 若沒建表就安靜跳過，等用戶首次新增再提示 */ }
+}
+document.getElementById('btn-save-cloud').onclick=()=>{
+  const url=document.getElementById('sb-url').value.trim()||appState.cloud.url, key=document.getElementById('sb-key').value.trim()||appState.cloud.key;
+  if(!url||!key){ alert('請填入 URL 與 Key'); return; }
+  appState.cloud={url,key,enabled:true}; persist('ut_cloud',appState.cloud);
+  toast('✅ 已儲存並啟用雲端；稍後會嘗試同步。', 2400); cloudPull();
+};
+document.getElementById('btn-clear-cloud').onclick=()=>{ localStorage.removeItem('ut_cloud'); appState.cloud=null; toast('已改用本機離線模式。',2000); };
+
+/* 啟動時若有雲端設定就拉回 */
+cloudPull();
+updateDashboard();
+</script>
+</body>
+</html>
