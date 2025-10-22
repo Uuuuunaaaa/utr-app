@@ -699,8 +699,6 @@ document.getElementById('rec-add').onclick = () => {
   cloudSync('records');
 };
 
-renderRecords();
-
 // ------------------ 量化決策 ------------------
 function setupQuantDashboard() {
   const total = appState.decisions.length;
@@ -793,7 +791,7 @@ document.getElementById('btn-add-decision').onclick=()=>{
     note:document.getElementById('qt-note').value||'',
     result:'未執行'
   };
-  appState.decisions.unshift(d); persist('ut_decisions',appState.decisions); renderQuant(); // cloudSync("decisions"); setupQuantDashboard();
+  appState.decisions.unshift(d); persist('ut_decisions',appState.decisions); renderQuant(); cloudSync("decisions"); setupQuantDashboard();
 };
 document.getElementById('btn-csv').onclick=()=>{
   const rows=[['#','asset','pattern','trend','market','kline','rrr','breakout','draw','enter','result','note']]; 
@@ -801,10 +799,15 @@ document.getElementById('btn-csv').onclick=()=>{
   const csv=rows.map(r=>r.map(x=>`"${String(x).replaceAll('"','""')}"`).join(',')).join('\n');
   const blob=new Blob([csv],{type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='quant-decisions.csv'; a.click(); URL.revokeObjectURL(url);
 };
-renderQuant();
-setupQuantDashboard();
 
-/* ------------------ 雲端自動上傳（Supabase） ------------------ */
+// ------------------ 初始化 ------------------
+function updateDashboard() {
+  setupDashboard();
+  renderRecords();
+  renderQuant();
+}
+
+// ------------------ 雲端自動上傳（Supabase） ------------------
 const CREATE_SQL = `
 -- 在 Supabase SQL Editor 執行一次：
 create table if not exists utr_records (
@@ -848,25 +851,77 @@ function sbHeaders(){
     'Prefer':'return=representation'
   };
 }
+
 async function cloudSync(kind){
-  // 雲端同步功能已啟用
-  // 實際的同步邏輯應該在此處
+  if(!appState.cloud || !appState.cloud.enabled) return;
+  
+  const table = kind === 'records' ? 'utr_records' : 'utr_decisions';
+  const data = kind === 'records' ? appState.records : appState.decisions;
+  
+  try {
+    const url = `${appState.cloud.url}/rest/v1/${table}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: sbHeaders(),
+      body: JSON.stringify(data)
+    });
+    if(!response.ok) throw new Error(`Supabase sync failed: ${response.statusText}`);
+    toast(`✅ ${kind === 'records' ? '交易紀錄' : '量化決策'}已同步至雲端`, 2000);
+  } catch(e) {
+    console.error(e);
+    toast(`❌ 雲端同步失敗: ${e.message}`, 3000);
+  }
 }
-/* 啟用雲端與拉回 */
+
 async function cloudPull(){
-  // 雲端同步功能已啟用
-  // 實際的同步邏輯應該在此處
+  if(!appState.cloud || !appState.cloud.enabled) return;
+
+  try {
+    const recUrl = `${appState.cloud.url}/rest/v1/utr_records?select=*`;
+    const decUrl = `${appState.cloud.url}/rest/v1/utr_decisions?select=*`;
+
+    const [recRes, decRes] = await Promise.all([
+      fetch(recUrl, { headers: sbHeaders() }),
+      fetch(decUrl, { headers: sbHeaders() })
+    ]);
+
+    if(!recRes.ok || !decRes.ok) throw new Error("Supabase pull failed");
+
+    const records = await recRes.json();
+    const decisions = await decRes.json();
+
+    appState.records = records;
+    appState.decisions = decisions;
+    persist('ut_records', appState.records);
+    persist('ut_decisions', appState.decisions);
+    
+    updateDashboard();
+    toast("✅ 雲端資料已成功拉取並更新", 2000);
+
+  } catch(e) {
+    console.error(e);
+    toast(`❌ 雲端拉取失敗: ${e.message}`, 3000);
+  }
 }
+
 document.getElementById("btn-save-cloud").onclick=()=>{
   const url=document.getElementById("sb-url").value.trim()||appState.cloud.url, key=document.getElementById("sb-key").value.trim()||appState.cloud.key;
   if(!url||!key){ alert("請填入 URL 與 Key"); return; }
   appState.cloud={url,key,enabled:true}; persist("ut_cloud",appState.cloud);
   toast("✅ 已儲存雲端設定，雲端同步功能已啟用。", 3000);
+  cloudPull(); // 儲存成功後立即拉取雲端資料
 };
 document.getElementById('btn-clear-cloud').onclick=()=>{ localStorage.removeItem('ut_cloud'); appState.cloud=null; toast('已改用本機離線模式。',2000); };
 
-/* 雲端同步功能已禁用 */
-// cloudPull();
+// 初始化
+document.getElementById('create-sql').value = CREATE_SQL;
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.onclick = () => showPage(tab.dataset.page);
+});
+document.getElementById('lightBtn').onclick = () => document.body.dataset.theme = 'light';
+document.getElementById('darkBtn').onclick = () => document.body.dataset.theme = 'dark';
+
+loadState();
 updateDashboard();
 </script>
 </body>
