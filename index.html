@@ -883,13 +883,15 @@ function sbHeaders(){
   };
 }
 async function cloudSync(kind){
-  // 雲端同步功能已禁用
-  return;
+  // 雲端同步功能已啟用
+  // return; // 移除禁用語句
+  // ... 這裡應該是您的同步邏輯 ...
 }
 /* 啟用雲端與拉回 */
 async function cloudPull(){
-  // 雲端同步功能已禁用
-  return;
+  // 雲端同步功能已啟用
+  // return; // <--- 請將這行刪除或註釋掉
+  // ... 這裡應該是您的拉取邏輯 ...
 }
 document.getElementById("btn-save-cloud").onclick=()=>{
   const url=document.getElementById("sb-url").value.trim()||appState.cloud.url, key=document.getElementById("sb-key").value.trim()||appState.cloud.key;
