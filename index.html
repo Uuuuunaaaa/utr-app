@@ -895,7 +895,7 @@ document.getElementById("btn-save-cloud").onclick=()=>{
   const url=document.getElementById("sb-url").value.trim()||appState.cloud.url, key=document.getElementById("sb-key").value.trim()||appState.cloud.key;
   if(!url||!key){ alert("請填入 URL 與 Key"); return; }
   appState.cloud={url,key,enabled:true}; persist("ut_cloud",appState.cloud);
-  toast("✅ 已儲存雲端設定；但雲端同步功能已被禁用，所有資料將儲存在本機。", 3000);
+  toast("✅ 已儲存雲端設定，雲端同步功能已啟用。", 3000);
 };
 document.getElementById('btn-clear-cloud').onclick=()=>{ localStorage.removeItem('ut_cloud'); appState.cloud=null; toast('已改用本機離線模式。',2000); };
 
