@@ -722,7 +722,7 @@ const conditionMap = {
 };
 
 function calculateIndividualKPIs() {
-  const closedDecisions = appState.decisions.filter(d => d.result !== '未執行');
+  const closedDecisions = appState.decisions.filter(d => d.result !== '未執行' && d.result !== '');
   const kpiData = {};
   const conditions = ['pattern', 'trend', 'market', 'breakout', 'draw', 'kline'];
   const ignoreValue = 'N/A';
@@ -732,7 +732,8 @@ function calculateIndividualKPIs() {
   closedDecisions.forEach(d => {
     conditions.forEach(cond => {
       const value = d[cond] || '無';
-      if(value === ignoreValue) return;
+      // 只統計非 N/A 的值
+      if(value === ignoreValue || value === '' || value === undefined) return;
       if (!kpiData[cond][value]) {
         kpiData[cond][value] = { wins: 0, losses: 0, total: 0, winRate: '—' };
       }
@@ -749,8 +750,10 @@ function calculateIndividualKPIs() {
     }
   });
 
-  const rrrWins = closedDecisions.filter(d => d.result === '盈' && d.rrr >= 3).length;
-  const rrrLosses = closedDecisions.filter(d => d.result === '虧' && d.rrr >= 3).length;
+  // RRR 計算：只統計 result 為盈或虧的決策
+  const rrrDecisions = closedDecisions.filter(d => (d.result === '盈' || d.result === '虧') && d.rrr);
+  const rrrWins = rrrDecisions.filter(d => d.result === '盈' && parseFloat(d.rrr) >= 3).length;
+  const rrrLosses = rrrDecisions.filter(d => d.result === '虧' && parseFloat(d.rrr) >= 3).length;
   const rrrTotal = rrrWins + rrrLosses;
   kpiData.rrr = { 'RRR >= 3': { wins: rrrWins, losses: rrrLosses, total: rrrTotal, winRate: rrrTotal > 0 ? (rrrWins / rrrTotal * 100).toFixed(1) + '%' : '—' } };
 
@@ -793,20 +796,24 @@ function renderResonanceFilters() {
 }
 
 function analyzeResonance() {
-    const closedDecisions = appState.decisions.filter(d => d.result !== '未執行');
+    // 只統計已執行的決策（結果為盈或虧）
+    const closedDecisions = appState.decisions.filter(d => d.result === '盈' || d.result === '虧');
     const activeFilters = Array.from(document.querySelectorAll('#resonance-filters input:checked')).map(cb => cb.dataset.filter);
     
     if (activeFilters.length === 0) {
-        document.getElementById('resonance-result').innerHTML = '<span style=\"color:var(--muted)\">請勾選至少一個條件</span>';
+        document.getElementById('resonance-result').innerHTML = '<span style="color:var(--muted)">請勾選至少一個條件</span>';
         return;
     }
 
+    // 第一步：篩選所有勾選條件都不是 N/A 的決策
     const decisionsToAnalyze = closedDecisions.filter(decision => {
         return activeFilters.every(filterKey => {
-            return decision[filterKey] !== 'N/A';
+            const value = decision[filterKey];
+            return value !== 'N/A' && value !== '' && value !== undefined;
         });
     });
 
+    // 第二步：從篩選後的決策中，找出所有勾選條件都匹配的決策
     const matchedDecisions = decisionsToAnalyze.filter(decision => {
         return activeFilters.every(filterKey => {
             const filterValue = document.getElementById(`qt-${filterKey}`).value;
@@ -822,8 +829,8 @@ function analyzeResonance() {
     const resultEl = document.getElementById('resonance-result');
     const color = winRate >= 50 ? 'var(--accent)' : 'var(--danger)';
     resultEl.innerHTML = `
-        <span style=\"color:${color}\">共振勝率: ${winRate}%</span>
-        <small style=\"margin-left:8px; color:var(--muted)\">(符合 ${total} 筆，${wins} 盈 / ${losses} 虧)</small>
+        <span style="color:${color}">共振勝率: ${winRate}%</span>
+        <small style="margin-left:8px; color:var(--muted)">(符合 ${total} 筆，${wins} 盈 / ${losses} 虧 | 篩選 ${decisionsToAnalyze.length} 筆)</small>
     `;
 }
 
@@ -843,13 +850,16 @@ function renderQuant(){
     else if(d.result === '虧'){ resultColor = 'var(--danger)'; }
 
     const tr=document.createElement('tr');
+    // 確保 RRR 顯示為數字或 —
+    const rrrDisplay = d.rrr ? (typeof d.rrr === 'number' ? d.rrr.toFixed(2) : parseFloat(d.rrr).toFixed(2)) : '—';
+    
     tr.innerHTML=`
       <td>${i+1}</td><td>${d.asset}</td>
       <td>${d.pattern === 'N/A' ? '未參考' : d.pattern}</td>
       <td>${d.trend === 'N/A' ? '未參考' : d.trend}</td>
       <td>${d.market === 'N/A' ? '未參考' : d.market}</td>
       <td>${d.kline === 'N/A' ? '未參考' : d.kline || '無'}</td>
-      <td>${d.rrr}</td>
+      <td>${rrrDisplay}</td>
       <td>${d.breakout === 'N/A' ? '未參考' : d.breakout}</td>
       <td>${d.draw === 'N/A' ? '未參考' : d.draw}</td>
       <td style="color:${enterColor}">${d.enter}</td>
@@ -873,6 +883,7 @@ function renderQuant(){
       renderQuant();
       cloudSync('decisions');
       setupQuantDashboard();
+      updateDashboard(); // 同時更新儀表板
     };
   });
   setupQuantDashboard();
