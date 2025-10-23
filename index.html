@@ -722,7 +722,8 @@ const conditionMap = {
 };
 
 function calculateIndividualKPIs() {
-  const closedDecisions = appState.decisions.filter(d => d.result !== '未執行' && d.result !== '');
+  // 只統計結果為「盈」或「虧」的決策
+  const closedDecisions = appState.decisions.filter(d => d.result === '盈' || d.result === '虧');
   const kpiData = {};
   const conditions = ['pattern', 'trend', 'market', 'breakout', 'draw', 'kline'];
   const ignoreValue = 'N/A';
@@ -731,9 +732,9 @@ function calculateIndividualKPIs() {
 
   closedDecisions.forEach(d => {
     conditions.forEach(cond => {
-      const value = d[cond] || '無';
+      const value = d[cond];
       // 只統計非 N/A 的值
-      if(value === ignoreValue || value === '' || value === undefined) return;
+      if(value === ignoreValue || value === '' || value === undefined || value === '無') return;
       if (!kpiData[cond][value]) {
         kpiData[cond][value] = { wins: 0, losses: 0, total: 0, winRate: '—' };
       }
@@ -750,12 +751,15 @@ function calculateIndividualKPIs() {
     }
   });
 
-  // RRR 計算：只統計 result 為盈或虧的決策
-  const rrrDecisions = closedDecisions.filter(d => (d.result === '盈' || d.result === '虧') && d.rrr);
-  const rrrWins = rrrDecisions.filter(d => d.result === '盈' && parseFloat(d.rrr) >= 3).length;
-  const rrrLosses = rrrDecisions.filter(d => d.result === '虧' && parseFloat(d.rrr) >= 3).length;
+  // RRR 計算：只統計 result 為盈或虧且有 RRR 值的決策
+  const rrrWins = closedDecisions.filter(d => d.result === '盈' && d.rrr && parseFloat(d.rrr) >= 3).length;
+  const rrrLosses = closedDecisions.filter(d => d.result === '虧' && d.rrr && parseFloat(d.rrr) >= 3).length;
   const rrrTotal = rrrWins + rrrLosses;
-  kpiData.rrr = { 'RRR >= 3': { wins: rrrWins, losses: rrrLosses, total: rrrTotal, winRate: rrrTotal > 0 ? (rrrWins / rrrTotal * 100).toFixed(1) + '%' : '—' } };
+  if (rrrTotal > 0) {
+    kpiData.rrr = { 'RRR >= 3': { wins: rrrWins, losses: rrrLosses, total: rrrTotal, winRate: (rrrWins / rrrTotal * 100).toFixed(1) + '%' } };
+  } else {
+    kpiData.rrr = { 'RRR >= 3': { wins: 0, losses: 0, total: 0, winRate: '—' } };
+  }
 
   return kpiData;
 }
@@ -796,8 +800,13 @@ function renderResonanceFilters() {
 }
 
 function analyzeResonance() {
-    // 只統計已執行的決策（結果為盈或虧）
     const closedDecisions = appState.decisions.filter(d => d.result === '盈' || d.result === '虧');
+    
+    if (closedDecisions.length === 0) {
+        document.getElementById('resonance-result').innerHTML = '<span style="color:var(--muted)">沒有已執行的決策</span>';
+        return;
+    }
+    
     const activeFilters = Array.from(document.querySelectorAll('#resonance-filters input:checked')).map(cb => cb.dataset.filter);
     
     if (activeFilters.length === 0) {
@@ -805,19 +814,26 @@ function analyzeResonance() {
         return;
     }
 
-    // 第一步：篩選所有勾選條件都不是 N/A 的決策
-    const decisionsToAnalyze = closedDecisions.filter(decision => {
+    // 核心邏輯：找出所有勾選條件都滿足以下条件的決策：
+    // 1. 該條件值不是 N/A（即該決策考慮了該條件）
+    // 2. 該條件值與表單值完全相同
+    
+    // 先計算「篩選筆數」：所有勾選條件都不是 N/A 的決策
+    const filteredDecisions = closedDecisions.filter(decision => {
         return activeFilters.every(filterKey => {
-            const value = decision[filterKey];
-            return value !== 'N/A' && value !== '' && value !== undefined;
+            const decisionValue = decision[filterKey];
+            // 該條件值不是 N/A、undefined、空字符串、'無'
+            return decisionValue !== 'N/A' && decisionValue !== undefined && decisionValue !== '' && decisionValue !== '無';
         });
     });
-
-    // 第二步：從篩選後的決策中，找出所有勾選條件都匹配的決策
-    const matchedDecisions = decisionsToAnalyze.filter(decision => {
+    
+    // 再從篩選後的決策中，找出所有條件都與表單值相同的決策
+    const matchedDecisions = filteredDecisions.filter(decision => {
         return activeFilters.every(filterKey => {
-            const filterValue = document.getElementById(`qt-${filterKey}`).value;
-            return decision[filterKey] === filterValue;
+            const formValue = document.getElementById(`qt-${filterKey}`).value;
+            const decisionValue = decision[filterKey];
+            // 必須與表單值完全相同
+            return decisionValue === formValue;
         });
     });
 
@@ -828,10 +844,19 @@ function analyzeResonance() {
 
     const resultEl = document.getElementById('resonance-result');
     const color = winRate >= 50 ? 'var(--accent)' : 'var(--danger)';
-    resultEl.innerHTML = `
-        <span style="color:${color}">共振勝率: ${winRate}%</span>
-        <small style="margin-left:8px; color:var(--muted)">(符合 ${total} 筆，${wins} 盈 / ${losses} 虧 | 篩選 ${decisionsToAnalyze.length} 筆)</small>
-    `;
+    const filterNames = activeFilters.map(f => conditionMap[f]).join(' + ');
+    
+    if (total === 0) {
+        resultEl.innerHTML = `
+            <span style="color:var(--muted)">共振勝率: —</span>
+            <small style="margin-left:8px; color:var(--muted)">(${filterNames} | 沒有符合的決策 | 篩選 ${filteredDecisions.length} 筆)</small>
+        `;
+    } else {
+        resultEl.innerHTML = `
+            <span style="color:${color}">共振勝率: ${winRate}%</span>
+            <small style="margin-left:8px; color:var(--muted)">(符合 ${total} 筆，${wins} 盈 / ${losses} 虧 | 篩選 ${filteredDecisions.length} 筆)</small>
+        `;
+    }
 }
 
 function setupQuantDashboard() {
