@@ -445,15 +445,35 @@ async function cloudSync(kind) {
     
     if (kind === 'records' || !kind) {
       const records = appState.records;
+      // 先將所有記錄上傳
       for (const record of records) {
         await supabase.from('utr_records').upsert(record, { onConflict: 'id' });
+      }
+      // 然後從 Supabase 拉取所有記錄，刪除本地不存在的記錄
+      const { data: cloudRecords } = await supabase.from('utr_records').select('id');
+      if (cloudRecords) {
+        const localIds = new Set(records.map(r => r.id));
+        const recordsToDelete = cloudRecords.filter(r => !localIds.has(r.id));
+        for (const record of recordsToDelete) {
+          await supabase.from('utr_records').delete().eq('id', record.id);
+        }
       }
     }
     
     if (kind === 'decisions' || !kind) {
       const decisions = appState.decisions;
+      // 先將所有決策上傳
       for (const decision of decisions) {
         await supabase.from('utr_decisions').upsert(decision, { onConflict: 'id' });
+      }
+      // 然後從 Supabase 拉取所有決策，刪除本地不存在的決策
+      const { data: cloudDecisions } = await supabase.from('utr_decisions').select('id');
+      if (cloudDecisions) {
+        const localIds = new Set(decisions.map(d => d.id));
+        const decisionsToDelete = cloudDecisions.filter(d => !localIds.has(d.id));
+        for (const decision of decisionsToDelete) {
+          await supabase.from('utr_decisions').delete().eq('id', decision.id);
+        }
       }
     }
     
@@ -722,6 +742,16 @@ const conditionMap = {
 };
 
 function calculateIndividualKPIs() {
+  // 定義有效的值
+  const validValues = {
+    pattern: ['其他', 'vegas', '通道', '頭肩頂', '頭肩底'],
+    trend: ['上行趨勢', '下行趨勢', '盤整區間'],
+    market: ['是', '否'],
+    breakout: ['突破激進進場', '突破回踩進場'],
+    draw: ['是TP SL已設定', '否'],
+    kline: ['帶長上影線', '帶長下影線', '放量K棒', '吞噬/刺透']
+  };
+  
   // 只統計結果為「盈」或「虧」的決策
   const closedDecisions = appState.decisions.filter(d => d.result === '盈' || d.result === '虧');
   const kpiData = {};
@@ -733,8 +763,9 @@ function calculateIndividualKPIs() {
   closedDecisions.forEach(d => {
     conditions.forEach(cond => {
       const value = d[cond];
-      // 只統計非 N/A 的值
+      // 只統計非 N/A 的值，且必須是有效的值
       if(value === ignoreValue || value === '' || value === undefined || value === '無') return;
+      if (!validValues[cond].includes(value)) return;  // 過濾無效值
       if (!kpiData[cond][value]) {
         kpiData[cond][value] = { wins: 0, losses: 0, total: 0, winRate: '—' };
       }
@@ -743,6 +774,15 @@ function calculateIndividualKPIs() {
       else if (d.result === '虧') kpiData[cond][value].losses++;
     });
   });
+  
+  // 清理無效的分類（total === 0）
+  for (const cond in kpiData) {
+    for (const value in kpiData[cond]) {
+      if (kpiData[cond][value].total === 0) {
+        delete kpiData[cond][value];
+      }
+    }
+  }
 
   conditions.forEach(cond => {
     for (const value in kpiData[cond]) {
@@ -769,17 +809,22 @@ function renderIndividualKPIs() {
   const container = document.getElementById('quant-dashboard-individual');
   container.innerHTML = '';
 
+  // 只這示实际存在的分類（total > 0）
   for(const condKey in kpiData){
     const condTitle = conditionMap[condKey] || '風報比';
     for(const valueKey in kpiData[condKey]){
       const data = kpiData[condKey][valueKey];
+      
+      // 策略：只有當 total > 0 時才顯示，以排除空白分類
+      if (data.total === 0) continue;
+      
       const card = document.createElement('div');
       card.className = 'card';
       const color = data.winRate !== '—' && parseFloat(data.winRate) >= 50 ? 'var(--accent)' : 'var(--danger)';
       card.innerHTML = `
-        <div class=\"flex\"><span class=\"badge\">${condTitle} - ${valueKey}</span></div>
-        <div class=\"kpi\" style=\"color:${color}\">${data.winRate}</div>
-        <div class=\"hr\"></div>
+        <div class="flex"><span class="badge">${condTitle} - ${valueKey}</span></div>
+        <div class="kpi" style="color:${color}">${data.winRate}</div>
+        <div class="hr"></div>
         <small>總次數: ${data.total} (盈: ${data.wins} / 虧: ${data.losses})</small>`;
       container.appendChild(card);
     }
@@ -898,17 +943,23 @@ function renderQuant(){
     tbody.appendChild(tr);
   });
   tbody.querySelectorAll('[data-qdel]').forEach(b=>{
-    b.onclick=()=>{ appState.decisions.splice(+b.dataset.qdel,1); persist('ut_decisions',appState.decisions); renderQuant(); cloudSync('decisions'); setupQuantDashboard(); };
+    b.onclick=()=>{ 
+      appState.decisions.splice(+b.dataset.qdel,1); 
+      persist('ut_decisions',appState.decisions); 
+      renderQuant();  // 重新渲染決策表
+      cloudSync('decisions');  // 同步到 Supabase
+      setupQuantDashboard();  // 重新計算所有 KPI
+      updateDashboard();  // 同時更新主儀表板
+    };
   });
   tbody.querySelectorAll('[data-result-idx]').forEach(select=>{
     select.onchange=(e)=>{
       const idx = +e.target.dataset.resultIdx;
       appState.decisions[idx].result = e.target.value;
       persist('ut_decisions',appState.decisions);
-      renderQuant();
       cloudSync('decisions');
-      setupQuantDashboard();
-      updateDashboard(); // 同時更新儀表板
+      setupQuantDashboard();  // 重新計算所有 KPI
+      updateDashboard();  // 同時更新主儀表板
     };
   });
   setupQuantDashboard();
